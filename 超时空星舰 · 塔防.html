@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>超时空星舰 · 塔防</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body {
+    height:100%; background:#05060a; overflow:hidden;
+    font-family:"Courier New",monospace; color:#9fe8ff;
+    -webkit-tap-highlight-color:transparent;
+  }
+  #wrap { position:relative; width:100vw; height:100vh; }
+  canvas { display:block; width:100%; height:100%; cursor:crosshair; }
+
+  /* ===== 玩法声明弹窗 ===== */
+  #intro {
+    position:absolute; inset:0; z-index:20;
+    background:radial-gradient(circle at 50% 40%, rgba(10,30,60,.92), rgba(2,4,10,.98));
+    display:flex; align-items:center; justify-content:center;
+    padding:20px; backdrop-filter:blur(4px);
+  }
+  #intro.hide { display:none; }
+  .panel {
+    max-width:560px; width:100%; max-height:90vh; overflow-y:auto;
+    border:1px solid #1e6bff; border-radius:14px;
+    background:linear-gradient(160deg, rgba(8,20,45,.95), rgba(4,8,20,.98));
+    box-shadow:0 0 40px rgba(30,120,255,.35), inset 0 0 30px rgba(30,120,255,.08);
+    padding:26px 24px;
+  }
+  .panel h1 {
+    font-size:26px; letter-spacing:4px; text-align:center;
+    color:#7fd4ff; text-shadow:0 0 12px #1e6bff, 0 0 30px #0a3a8a;
+    margin-bottom:6px;
+  }
+  .panel .sub {
+    text-align:center; font-size:12px; letter-spacing:2px;
+    color:#4a7ba8; margin-bottom:18px;
+  }
+  .panel h2 {
+    font-size:14px; color:#4fe3c1; letter-spacing:2px;
+    margin:16px 0 8px; border-left:3px solid #4fe3c1; padding-left:8px;
+  }
+  .panel p, .panel li { font-size:13px; line-height:1.85; color:#a9c6dd; }
+  .panel ul { padding-left:18px; }
+  .panel b { color:#ffd166; }
+  .tag {
+    display:inline-block; padding:1px 7px; margin-right:4px;
+    border:1px solid #1e6bff; border-radius:4px;
+    font-size:11px; color:#7fd4ff; background:rgba(30,107,255,.12);
+  }
+  #startBtn {
+    display:block; width:100%; margin-top:22px; padding:14px;
+    font-family:inherit; font-size:16px; letter-spacing:6px; font-weight:bold;
+    color:#031018; cursor:pointer;
+    background:linear-gradient(90deg,#4fe3c1,#38a8ff,#4fe3c1);
+    background-size:200% 100%;
+    border:none; border-radius:8px;
+    box-shadow:0 0 20px rgba(79,227,193,.5);
+    animation:flow 3s linear infinite;
+    transition:transform .15s;
+  }
+  #startBtn:active { transform:scale(.97); }
+  @keyframes flow { to { background-position:200% 0; } }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="cv"></canvas>
+
+  <div id="intro">
+    <div class="panel">
+      <h1>超时空星舰</h1>
+      <div class="sub">// HYPERSPACE STARSHIP · TOWER DEFENSE //</div>
+
+      <h2>◈ 玩法声明</h2>
+      <p>你是这艘星舰的<b>战术指挥官</b>。敌舰从右侧星海深处成波袭来，目标只有一个：<b>撞毁你的飞船核心</b>。你要在飞船甲板的网格上部署炮塔，把它们全部拦在船体之外。</p>
+
+      <h2>◈ 核心机制</h2>
+      <ul>
+        <li><b>能量网格</b>：左侧 4 座反应堆沿纵向供电。炮塔<b>必须建在蓝色能量网格覆盖的格子</b>内，否则无法通电。</li>
+        <li><b>能量预算</b>：每座炮塔持续耗电，反应堆总数决定你能同时开火的上限。断电的炮塔会变暗停火。</li>
+        <li><b>资源</b>：击毁敌舰获得 <span class="tag">¤ 星币</span>，用来建造和升级炮塔。</li>
+        <li><b>结构值</b>：敌舰撞上船体或自爆虫贴身爆炸，都会扣核心结构值，归零即战败。</li>
+      </ul>
+
+      <h2>◈ 三种炮塔</h2>
+      <ul>
+        <li><b style="color:#7fd4ff">激光炮</b>：单体高频，性价比之王。</li>
+        <li><b style="color:#ffb347">导弹台</b>：范围溅射，对付集群。</li>
+        <li><b style="color:#c77dff">脉冲塔</b>：减速场，拖住快船。</li>
+      </ul>
+
+      <h2>◈ 三种敌舰</h2>
+      <ul>
+        <li><b>突袭机</b>：快而脆，专钻防线缝隙。</li>
+        <li><b>装甲炮艇</b>：慢、硬、血厚。</li>
+        <li><b>自爆虫</b>：撞到船体就爆，扣结构值最狠。</li>
+      </ul>
+
+      <h2>◈ 操作</h2>
+      <ul>
+        <li>点击 <b>底部炮塔按钮</b> 选择类型（数字键 1/2/3 亦可）。</li>
+        <li>点击 <b>飞船甲板上的空格</b> 建造。</li>
+        <li>点击 <b>已有炮塔</b> 花钱升级（+伤害 +射速）。</li>
+      </ul>
+
+      <p style="margin-top:14px;text-align:center;color:#4fe3c1;letter-spacing:2px;">
+        抵挡 5 波进攻，星舰就是你的勋章。
+      </p>
+
+      <button id="startBtn">启 动 舰 桥</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+// ============ 基础 ============
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let W = 0, H = 0, DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+function resize() {
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR;
+  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  buildGrid();
+}
+window.addEventListener('resize', resize);
+
+// ============ 布局常量 ============
+const GRID = { cols: 0, rows: 5, size: 56, x0: 0, y0: 0 };
+function buildGrid() {
+  const isMobile = W < 700;
+  GRID.size = Math.max(38, Math.min(58, Math.floor(W / (isMobile ? 10 : 16))));
+  GRID.rows = 5;
+  GRID.cols = Math.max(6, Math.min(12, Math.floor((W * 0.72) / GRID.size)));
+  GRID.x0 = Math.floor(W * 0.06);
+  GRID.y0 = Math.floor(H * 0.30);
+}
+resize();
+
+function cellCenter(c, r) {
+  return {
+    x: GRID.x0 + c * GRID.size + GRID.size/2,
+    y: GRID.y0 + r * GRID.size + GRID.size/2
+  };
+}
+function cellAt(px, py) {
+  const c = Math.floor((px - GRID.x0) / GRID.size);
+  const r = Math.floor((py - GRID.y0) / GRID.size);
+  if (c < 0 || c >= GRID.cols || r < 0 || r >= GRID.rows) return null;
+  return { c, r };
+}
+
+// ============ 游戏状态 ============
+const STATE = { MENU:0, PLAY:1, WIN:2, LOSE:3 };
+let state = STATE.MENU;
+
+const G = {
+  credits: 220,
+  structure: 100,
+  maxStructure: 100,
+  wave: 0,
+  maxWave: 5,
+  enemies: [],
+  towers: [],
+  bullets: [],
+  particles: [],
+  floaters: [],
+  spawnQueue: [],
+  spawnTimer: 0,
+  waveCooldown: 2.5,
+  betweenWaves: true,
+  selected: 'laser',
+  shake: 0,
+  time: 0,
+  stars: [],
+  planets: [],
+  gridFlash: 0
+};
+
+// 炮塔配置
+const TOWER_DEF = {
+  laser: {
+    name:'激光炮', color:'#7fd4ff', glow:'#1e6bff',
+    cost:80, power:1, dmg:9, rate:0.28, range:3.4, bulletSpeed:900, splash:0, slow:0
+  },
+  missile: {
+    name:'导弹台', color:'#ffb347', glow:'#ff7b00',
+    cost:130, power:2, dmg:26, rate:0.95, range:4.2, bulletSpeed:520, splash:1.1, slow:0
+  },
+  pulse: {
+    name:'脉冲塔', color:'#c77dff', glow:'#8a2be2',
+    cost:100, power:1, dmg:5, rate:0.55, range:3.0, bulletSpeed:700, splash:0.9, slow:0.55
+  }
+};
+
+const ENEMY_DEF = {
+  raider:  { name:'突袭机',   hp:34,  speed:78,  dmg:8,  size:13, color:'#ff5d73', reward:14, power:0 },
+  gunship: { name:'装甲炮艇', hp:120, speed:34,  dmg:16, size:19, color:'#ff9f43', reward:30, power:0 },
+  bomber:  { name:'自爆虫',   hp:22,  speed:62,  dmg:22, size:11, color:'#ff2e63', reward:18, power:0 }
+};
+
+// 波次配置
+const WAVES = [
+  { raider:5,  gunship:0, bomber:0 },
+  { raider:7,  gunship:1, bomber:2 },
+  { raider:6,  gunship:3, bomber:4 },
+  { raider:10, gunship:4, bomber:5 },
+  { raider:12, gunship:6, bomber:8 }
+];
+
+// ============ 星空背景 ============
+function initBackground() {
+  G.stars = [];
+  for (let i = 0; i < 160; i++) {
+    G.stars.push({
+      x: Math.random()*W, y: Math.random()*H,
+      r: Math.random()*1.5 + 0.3,
+      a: Math.random()*0.7 + 0.2,
+      sp: Math.random()*0.06 + 0.01,
+      c: Math.random() < 0.25 ? '#7fd4ff' : (Math.random()<0.5?'#ffffff':'#c77dff')
+    });
+  }
+  G.planets = [
+    { x: W*0.85, y: H*0.18, r: Math.min(W,H)*0.10, c1:'#2a4a8a', c2:'#0a1226' },
+    { x: W*0.12, y: H*0.82, r: Math.min(W,H)*0.07, c1:'#5a2a6a', c2:'#14061c' }
+  ];
+}
+initBackground();
+window.addEventListener('resize', () => { initBackground(); });
+
+// ============ 能量网格 ============
+// 反应堆沿左侧纵向分布，覆盖从其所在行向右 power 列
+function reactors() {
+  const rs = [];
+  const rows = GRID.rows;
+  const count = 4;
+  for (let i = 0; i < count; i++) {
+    const r = Math.floor((i + 0.5) * rows / count);
+    rs.push({ r, range: 3 });
+  }
+  return rs;
+}
+function isPowered(c, r) {
+  const rs = reactors();
+  for (const re of rs) {
+    const dr = Math.abs(r - re.r);
+    if (dr <= re.range && c <= 4) return true;
+  }
+  return false;
+}
+// 当前已用能量
+function usedPower() {
+  let p = 0;
+  for (const t of G.towers) if (t.alive) p += TOWER_DEF[t.type].power;
+  return p;
+}
+function totalPower() { return 8; }
+function towerPowered(t) {
+  return isPowered(t.c, t.r) && usedPower() <= totalPower();
+}
+
+// ============ 敌人生成 ============
+function startWave() {
+  G.wave++;
+  if (G.wave > G.maxWave) return;
+  const cfg = WAVES[G.wave - 1];
+  G.spawnQueue = [];
+  const push = (type, n) => { for (let i=0;i<n;i++) G.spawnQueue.push(type); };
+  push('raider', cfg.raider);
+  push('gunship', cfg.gunship);
+  push('bomber', cfg.bomber);
+  // 打乱
+  for (let i = G.spawnQueue.length-1; i>0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [G.spawnQueue[i], G.spawnQueue[j]] = [G.spawnQueue[j], G.spawnQueue[i]];
+  }
+  G.spawnTimer = 0;
+  G.betweenWaves = false;
+  addFloater(W/2, GRID.y0 - 40, `⚠ 第 ${G.wave} 波来袭`, '#ff5d73', 22);
+}
+
+function spawnEnemy(type) {
+  const d = ENEMY_DEF[type];
+  const laneRows = GRID.rows;
+  const r = Math.floor(Math.random() * laneRows);
+  const pos = cellCenter(GRID.cols + 1.4, r);
+  const hpScale = 1 + (G.wave - 1) * 0.18;
+  G.enemies.push({
+    type, r,
+    x: pos.x + (Math.random()*60),
+    y: pos.y,
+    hp: d.hp * hpScale,
+    maxHp: d.hp * hpScale,
+    speed: d.speed,
+    dmg: d.dmg,
+    size: d.size,
+    color: d.color,
+    reward: d.reward,
+    slowT: 0,
+    hitT: 0,
+    wob: Math.random()*Math.PI*2
+  });
+}
+
+// ============ 粒子 / 浮字 ============
+function addParticles(x, y, color, n, spd=180) {
+  for (let i=0;i<n;i++) {
+    const a = Math.random()*Math.PI*2;
+    const s = Math.random()*spd + 40;
+    G.particles.push({
+      x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s,
+      life: 0.5 + Math.random()*0.5, maxLife: 1,
+      color, r: Math.random()*2.6+1
+    });
+  }
+}
+function addFloater(x, y, text, color, size=14) {
+  G.floaters.push({ x, y, text, color, size, life:1.4, maxLife:1.4 });
+}
+
+// ============ 建造 / 升级 ============
+function placeTower(c, r) {
+  // 已有炮塔 -> 升级
+  const exist = G.towers.find(t => t.c===c && t.r===r && t.alive);
+  if (exist) { upgradeTower(exist); return; }
+
+  const def = TOWER_DEF[G.selected];
+  if (G.credits < def.cost) {
+    addFloater(cellCenter(c,r).x, cellCenter(c,r).y, '星币不足', '#ff5d73', 13);
+    return;
+  }
+  if (!isPowered(c, r)) {
+    addFloater(cellCenter(c,r).x, cellCenter(c,r).y, '无能量覆盖', '#ff5d73', 13);
+    return;
+  }
+  if (usedPower() + def.power > totalPower()) {
+    addFloater(cellCenter(c,r).x, cellCenter(c,r).y, '能量超载', '#ff5d73', 13);
+    return;
+  }
+
+  G.credits -= def.cost;
+  const pos = cellCenter(c, r);
+  G.towers.push({
+    type: G.selected, c, r, x: pos.x, y: pos.y,
+    cd: 0, level: 1, alive: true, angle: -Math.PI/2, pulse: 0
+  });
+  addParticles(pos.x, pos.y, def.color, 14, 140);
+  G.gridFlash = 0.4;
+}
+
+function upgradeTower(t) {
+  const cost = Math.floor(TOWER_DEF[t.type].cost * 0.8 * t.level);
+  if (G.credits < cost) {
+    addFloater(t.x, t.y, '星币不足', '#ff5d73', 13); return;
+  }
+  if (t.level >= 4) {
+    addFloater(t.x, t.y, '已满级', '#ffd166', 13); return;
+  }
+  G.credits -= cost;
+  t.level++;
+  addParticles(t.x, t.y, '#ffd166', 16, 160);
+  addFloater(t.x, t.y-24, `Lv.${t.level}`, '#ffd166', 15);
+}
+
+// ============ 更新 ============
+function update(dt) {
+  G.time += dt;
+  G.shake = Math.max(0, G.shake - dt*3.2);
+  G.gridFlash = Math.max(0, G.gridFlash - dt);
+
+  // 星空
+  for (const s of G.stars) {
+    s.x -= s.sp * 60 * dt * 10;
+    if (s.x < -2) { s.x = W+2; s.y = Math.random()*H; }
+  }
+
+  if (state !== STATE.PLAY) return;
+
+  // 波次调度
+  if (G.betweenWaves) {
+    G.waveCooldown -= dt;
+    if (G.waveCooldown <= 0) {
+      if (G.wave >= G.maxWave) {
+        // 检查是否清场
+        if (G.enemies.length === 0) { state = STATE.WIN; }
+        else { G.betweenWaves = false; }
+      } else {
+        startWave();
+      }
+    }
+  } else {
+    // 生成敌人
+    if (G.spawnQueue.length > 0) {
+      G.spawnTimer -= dt;
+      if (G.spawnTimer <= 0) {
+        spawnEnemy(G.spawnQueue.shift());
+        G.spawnTimer = 0.55 + Math.random()*0.5;
+      }
+    } else if (G.enemies.length === 0) {
+      // 本波结束
+      G.betweenWaves = true;
+      G.waveCooldown = 3.0;
+      if (G.wave < G.maxWave) {
+        addFloater(W/2, GRID.y0 - 40, `第 ${G.wave} 波清除`, '#4fe3c1', 20);
+        G.credits += 60 + G.wave*20;
+        addFloater(W/2, GRID.y0 - 10, `+${60 + G.wave*20} ¤`, '#ffd166', 16);
+      }
+    }
+  }
+
+  // 敌人
+  for (const e of G.enemies) {
+    if (e.slowT > 0) { e.slowT -= dt; }
+    const spd = e.speed * (e.slowT > 0 ? 0.42 : 1);
+    e.x -= spd * dt;
+    e.wob += dt*6;
+    e.y += Math.sin(e.wob) * 12 * dt;
+    if (e.hitT > 0) e.hitT -= dt;
+
+    // 撞船判定
+    const hullX = GRID.x0 - 6;
+    if (e.x <= hullX) {
+      damageStructure(e.dmg);
+      addParticles(e.x, e.y, e.color, 24, 260);
+      e.hp = -999;
+    }
+  }
+  G.enemies = G.enemies.filter(e => e.hp > 0);
+
+  // 炮塔
+  for (const t of G.towers) {
+    if (!t.alive) continue;
+    t.pulse = Math.max(0, t.pulse - dt*3);
+    const def = TOWER_DEF[t.type];
+    const powered = towerPowered(t);
+    if (!powered) continue;
+
+    t.cd -= dt;
+    // 索敌：射程内最靠左（最近船体）的敌人
+    let target = null, bestX = Infinity;
+    const range = def.range * GRID.size;
+    for (const e of G.enemies) {
+      const dx = e.x - t.x, dy = e.y - t.y;
+      if (dx*dx + dy*dy <= range*range) {
+        if (e.x < bestX) { bestX = e.x; target = e; }
+      }
+    }
+    if (target) {
+      t.angle = Math.atan2(target.y - t.y, target.x - t.x);
+      if (t.cd <= 0) {
+        t.cd = def.rate / (1 + (t.level-1)*0.28);
+        fire(t, def, target);
+      }
+    }
+  }
+
+  // 子弹
+  for (const b of G.bullets) {
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    b.life -= dt;
+
+    for (const e of G.enemies) {
+      if (e.hp <= 0) continue;
+      const dx = e.x - b.x, dy = e.y - b.y;
+      const rr = (e.size + b.r + 4);
+      if (dx*dx + dy*dy <= rr*rr) {
+        hitEnemy(e, b.dmg, b.slow, b.color);
+        if (b.splash > 0) {
+          addParticles(b.x, b.y, b.color, 16, 240);
+          for (const e2 of G.enemies) {
+            if (e2 === e || e2.hp <= 0) continue;
+            const d2 = Math.hypot(e2.x-b.x, e2.y-b.y);
+            if (d2 <= b.splash * GRID.size) {
+              hitEnemy(e2, b.dmg*0.55, b.slow, b.color);
+            }
+          }
+        }
+        b.life = -1;
+        break;
+      }
+    }
+    if (b.x < -60 || b.x > W+60 || b.y < -60 || b.y > H+60) b.life = -1;
+  }
+  G.bullets = G.bullets.filter(b => b.life > 0);
+
+  // 粒子
+  for (const p of G.particles) {
+    p.x += p.vx*dt; p.y += p.vy*dt;
+    p.vx *= 0.94; p.vy *= 0.94;
+    p.life -= dt;
+  }
+  G.particles = G.particles.filter(p => p.life > 0);
+
+  // 浮字
+  for (const f of G.floaters) {
+    f.y -= 26*dt; f.life -= dt;
+  }
+  G.floaters = G.floaters.filter(f => f.life > 0);
+}
+
+function fire(t, def, target) {
+  const lvl = 1 + (t.level-1)*0.25;
+  if (t.type === 'laser') {
+    // 瞬时激光（视觉用快速子弹）
+    const ang = Math.atan2(target.y-t.y, target.x-t.x);
+    G.bullets.push({
+      x:t.x, y:t.y, vx:Math.cos(ang)*def.bulletSpeed, vy:Math.sin(ang)*def.bulletSpeed,
+      r:3, dmg:def.dmg*lvl, splash:0, slow:0, color:def.color, life:0.9, laser:true
+    });
+  } else if (t.type === 'missile') {
+    const ang = Math.atan2(target.y-t.y, target.x-t.x);
+    G.bullets.push({
+      x:t.x, y:t.y, vx:Math.cos(ang)*def.bulletSpeed, vy:Math.sin(ang)*def.bulletSpeed,
+      r:5, dmg:def.dmg*lvl, splash:def.splash, slow:0, color:def.color, life:2
+    });
+  } else {
+    const ang = Math.atan2(target.y-t.y, target.x-t.x);
+    G.bullets.push({
+      x:t.x, y:t.y, vx:Math.cos(ang)*def.bulletSpeed, vy:Math.sin(ang)*def.bulletSpeed,
+      r:5, dmg:def.dmg*lvl, splash:def.splash, slow:def.slow, color:def.color, life:1.2
+    });
+  }
+  t.pulse = 1;
+  addParticles(t.x + Math.cos(t.angle)*18, t.y + Math.sin(t.angle)*18, def.color, 4, 80);
+}
+
+function hitEnemy(e, dmg, slow, color) {
+  e.hp -= dmg;
+  e.hitT = 0.12;
+  if (slow > 0) e.slowT = Math.max(e.slowT, 1.2);
+  addParticles(e.x, e.y, color, 5, 120);
+  if (e.hp <= 0) {
+    addParticles(e.x, e.y, e.color, 22, 260);
+    G.credits += e.reward;
+    addFloater(e.x, e.y, `+${e.reward}¤`, '#ffd166', 13);
+    G.shake = Math.min(0.5, G.shake + 0.12);
+  }
+}
+
+function damageStructure(d) {
+  G.structure -= d;
+  G.shake = 0.9;
+  if (G.structure <= 0) {
+    G.structure = 0;
+    state = STATE.LOSE;
+  }
+}
+
+// ============ 绘制 ============
+function draw() {
+  // 背景
+  const bg = ctx.createLinearGradient(0,0,W,H);
+  bg.addColorStop(0,'#04050a');
+  bg.addColorStop(0.5,'#070c18');
+  bg.addColorStop(1,'#04050a');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0,0,W,H);
+
+  // 行星
+  for (const p of G.planets) {
+    const g = ctx.createRadialGradient(p.x-p.r*0.3, p.y-p.r*0.3, p.r*0.1, p.x, p.y, p.r);
+    g.addColorStop(0, p.c1);
+    g.addColorStop(1, p.c2);
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+    ctx.fillStyle = g; ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // 星星
+  for (const s of G.stars) {
+    ctx.globalAlpha = s.a;
+    ctx.fillStyle = s.c;
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.save();
+  if (G.shake > 0) {
+    ctx.translate((Math.random()-0.5)*G.shake*16, (Math.random()-0.5)*G.shake*16);
+  }
+
+  drawShipHull();
+  drawEnergyGrid();
+  drawTowers();
+  drawEnemies();
+  drawBullets();
+  drawParticles();
+  drawFloaters();
+
+  ctx.restore();
+
+  drawHUD();
+
+  if (state === STATE.WIN) drawEndScreen(true);
+  if (state === STATE.LOSE) drawEndScreen(false);
+}
+
+function drawShipHull() {
+  const x0 = GRID.x0 - 14;
+  const y0 = GRID.y0 - 14;
+  const w = GRID.cols*GRID.size + 28;
+  const h = GRID.rows*GRID.size + 28;
+
+  // 船体金属底
+  const g = ctx.createLinearGradient(x0, y0, x0+w, y0+h);
+  g.addColorStop(0, 'rgba(20,32,54,0.92)');
+  g.addColorStop(0.5, 'rgba(14,22,40,0.92)');
+  g.addColorStop(1, 'rgba(8,14,28,0.95)');
+  ctx.fillStyle = g;
+  ctx.strokeStyle = 'rgba(79,227,193,0.35)';
+  ctx.lineWidth = 2;
+  roundRect(x0, y0, w, h, 12);
+  ctx.fill(); ctx.stroke();
+
+  // 装甲条纹
+  ctx.save();
+  ctx.beginPath(); roundRect(x0, y0, w, h, 12); ctx.clip();
+  ctx.globalAlpha = 0.06;
+  ctx.strokeStyle = '#7fd4ff';
+  ctx.lineWidth = 1;
+  for (let i = -h; i < w; i += 18) {
+    ctx.beginPath();
+    ctx.moveTo(x0+i, y0); ctx.lineTo(x0+i+h, y0+h);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 船首（左侧）发光核心
+  const cx = x0 + 4, cy = y0 + h/2;
+  const pulse = 0.6 + Math.sin(G.time*3)*0.25;
+  ctx.save();
+  ctx.shadowBlur = 26; ctx.shadowColor = '#4fe3c1';
+  ctx.fillStyle = `rgba(79,227,193,${pulse})`;
+  ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // 核心结构条（船体左侧竖条）
+  const barH = h * 0.7, barX = x0 - 9, barY = cy - barH/2;
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  roundRect(barX, barY, 5, barH, 3); ctx.fill();
+  const ratio = Math.max(0, G.structure / G.maxStructure);
+  const cg = ctx.createLinearGradient(0, barY+barH, 0, barY);
+  cg.addColorStop(0, '#ff2e63');
+  cg.addColorStop(0.5, '#ffd166');
+  cg.addColorStop(1, '#4fe3c1');
+  ctx.save();
+  ctx.shadowBlur = 12; ctx.shadowColor = '#4fe3c1';
+  ctx.fillStyle = cg;
+  roundRect(barX, barY + barH*(1-ratio), 5, barH*ratio, 3); ctx.fill();
+  ctx.restore();
+
+  // 反应堆
+  const rs = reactors();
+  for (let i=0;i<rs.length;i++) {
+    const re = rs[i];
+    const p = cellCenter(0, re.r);
+    const rx = x0 + 8;
+    const ry = p.y;
+    const on = usedPower() <= totalPower();
+    ctx.save();
+    ctx.shadowBlur = 14; ctx.shadowColor = on ? '#4fe3c1' : '#ff5d73';
+    ctx.fillStyle = on ? '#4fe3c1' : '#ff5d73';
+    ctx.globalAlpha = 0.75 + Math.sin(G.time*4 + i)*0.2;
+    ctx.beginPath(); ctx.arc(rx, ry, 5, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawEnergyGrid() {
+  const alpha = 0.10 + G.gridFlash*0.6 + Math.sin(G.time*2)*0.02;
+  for (let r=0;r<GRID.rows;r++) {
+    for (let c=0;c<GRID.cols;c++) {
+      if (!isPowered(c, r)) continue;
+      const p = cellCenter(c, r);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#1e6bff';
+      ctx.fillRect(p.x-GRID.size/2+2, p.y-GRID.size/2+2, GRID.size-4, GRID.size-4);
+      ctx.globalAlpha = alpha*2.2;
+      ctx.strokeStyle = '#4fe3c1';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(p.x-GRID.size/2+2, p.y-GRID.size/2+2, GRID.size-4, GRID.size-4);
+      ctx.restore();
+    }
+  }
+
+  // 网格线
+  ctx.save();
+  ctx.globalAlpha = 0.13;
+  ctx.strokeStyle = '#7fd4ff';
+  ctx.lineWidth = 1;
+  for (let c=0;c<=GRID.cols;c++) {
+    const x = GRID.x0 + c*GRID.size;
+    ctx.beginPath(); ctx.moveTo(x, GRID.y0); ctx.lineTo(x, GRID.y0+GRID.rows*GRID.size); ctx.stroke();
+  }
+  for (let r=0;r<=GRID.rows;r++) {
+    const y = GRID.y0 + r*GRID.size;
+    ctx.beginPath(); ctx.moveTo(GRID.x0, y); ctx.lineTo(GRID.x0+GRID.cols*GRID.size, y); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawTowers() {
+  for (const t of G.towers) {
+    const def = TOWER_DEF[t.type];
+    const powered = towerPowered(t);
+    const s = GRID.size;
+
+    ctx.save();
+    ctx.translate(t.x, t.y);
+
+    // 底座
+    ctx.globalAlpha = powered ? 1 : 0.35;
+    ctx.fillStyle = 'rgba(20,34,58,0.95)';
+    ctx.strokeStyle = powered ? def.color : '#44506a';
+    ctx.lineWidth = 2;
+    roundRect(-s*0.4, -s*0.4, s*0.8, s*0.8, 6);
+    ctx.fill(); ctx.stroke();
+
+    // 炮管
+    ctx.rotate(t.angle);
+    const pulse = 1 + t.pulse*0.5;
+    ctx.save();
+    ctx.shadowBlur = powered ? 16 : 0;
+    ctx.shadowColor = def.glow;
+    ctx.fillStyle = powered ? def.color : '#556';
+    ctx.fillRect(0, -4, s*0.36*pulse, 8);
+    ctx.restore();
+
+    // 中心
+    ctx.beginPath(); ctx.arc(0,0, s*0.16, 0, Math.PI*2);
+    ctx.fillStyle = powered ? def.glow : '#334';
+    ctx.fill();
+
+    // 等级点
+    ctx.rotate(-t.angle);
+    for (let i=0;i<t.level;i++) {
+      ctx.beginPath();
+      ctx.arc(-s*0.3 + i*6, s*0.3, 2, 0, Math.PI*2);
+      ctx.fillStyle = '#ffd166';
+      ctx.fill();
+    }
+
+    if (!powered) {
+      ctx.fillStyle = '#ff5d73';
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('断电', 0, -s*0.5);
+    }
+    ctx.restore();
+  }
+}
+
+function drawEnemies() {
+  for (const e of G.enemies) {
+    ctx.save();
+    ctx.translate(e.x, e.y);
+
+    // 尾焰
+    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = e.color;
+    ctx.beginPath();
+    ctx.moveTo(e.size*0.9, 0);
+    ctx.lineTo(e.size*1.8 + Math.random()*8, -e.size*0.35);
+    ctx.lineTo(e.size*1.8 + Math.random()*8, e.size*0.35);
+    ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // 船体
+    ctx.shadowBlur = 14; ctx.shadowColor = e.color;
+    ctx.fillStyle = e.hitT > 0 ? '#ffffff' : e.color;
+    ctx.beginPath();
+    ctx.moveTo(-e.size, 0);
+    ctx.lineTo(e.size*0.6, -e.size*0.7);
+    ctx.lineTo(e.size, 0);
+    ctx.lineTo(e.size*0.6, e.size*0.7);
+    ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // 内芯
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.beginPath(); ctx.arc(-e.size*0.15, 0, e.size*0.22, 0, Math.PI*2); ctx.fill();
+
+    // 血条
+    const w = e.size*2.4;
+    const hpR = Math.max(0, e.hp/e.maxHp);
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(-w/2, -e.size-9, w, 4);
+    ctx.fillStyle = hpR > 0.5 ? '#4fe3c1' : (hpR > 0.25 ? '#ffd166' : '#ff5d73');
+    ctx.fillRect(-w/2, -e.size-9, w*hpR, 4);
+
+    if (e.slowT > 0) {
+      ctx.strokeStyle = '#c77dff';
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.8;
+      ctx.beginPath(); ctx.arc(0,0, e.size+4, 0, Math.PI*2); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.restore();
+  }
+}
+
+function drawBullets() {
+  for (const b of G.bullets) {
+    ctx.save();
+    ctx.shadowBlur = 14; ctx.shadowColor = b.color;
+    ctx.fillStyle = b.color;
+    if (b.laser) {
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      ctx.ellipse(b.x, b.y, b.r*3.2, b.r*0.9, Math.atan2(b.vy,b.vx), 0, Math.PI*2);
+      ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+function drawParticles() {
+  for (const p of G.particles) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+    ctx.shadowBlur = 10; ctx.shadowColor = p.color;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawFloaters() {
+  for (const f of G.floaters) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, f.life / f.maxLife);
+    ctx.fillStyle = f.color;
+    ctx.font = `bold ${f.size}px "Courier New",monospace`;
+    ctx.textAlign = 'center';
+    ctx.shadowBlur = 10; ctx.shadowColor = f.color;
+    ctx.fillText(f.text, f.x, f.y);
+    ctx.restore();
+  }
+}
+
+// ============ HUD ============
+let towerBtns = [];
+function drawHUD() {
+  // 顶部状态栏
+  ctx.save();
+  ctx.fillStyle = 'rgba(4,8,18,0.78)';
+  ctx.fillRect(0, 0, W, 46);
+  ctx.strokeStyle = 'rgba(30,107,255,0.5)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0,46); ctx.lineTo(W,46); ctx.stroke();
+
+  ctx.font = 'bold 15px "Courier New",monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+
+  ctx.fillStyle = '#ffd166';
+  ctx.shadowBlur = 8; ctx.shadowColor = '#ffd166';
+  ctx.fillText(`¤ ${G.credits}`, 16, 23);
+
+  ctx.fillStyle = '#7fd4ff';
+  ctx.shadowColor = '#7fd4ff';
+  ctx.textAlign = 'center';
+  ctx.fillText(`结构 ${Math.ceil(G.structure)}/${G.maxStructure}`, W/2, 23);
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#4fe3c1';
+  ctx.shadowColor = '#4fe3c1';
+  const powerInfo = `${Math.min(usedPower(),totalPower())}/${totalPower()} 能量`;
+  ctx.fillText(powerInfo, W-16, 23);
+
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#a9c6dd';
+  ctx.font = '12px "Courier New",monospace';
+  const waveText = G.betweenWaves && G.wave < G.maxWave
+    ? `下一波 ${Math.max(0,G.waveCooldown).toFixed(1)}s`
+    : `第 ${G.wave} / ${G.maxWave} 波`;
+  ctx.fillText(waveText, W/2, 40);
+  ctx.restore();
+
+  // 底部炮塔按钮
+  towerBtns = [];
+  const keys = ['laser','missile','pulse'];
+  const bw = Math.min(120, (W - 40) / 3);
+  const bh = 62;
+  const gap = 10;
+  const totalW = bw*3 + gap*2;
+  const startX = (W - totalW)/2;
+  const by = H - bh - 16;
+
+  for (let i=0;i<keys.length;i++) {
+    const key = keys[i];
+    const def = TOWER_DEF[key];
+    const x = startX + i*(bw+gap);
+    const selected = G.selected === key;
+    const affordable = G.credits >= def.cost;
+
+    ctx.save();
+    ctx.globalAlpha = affordable ? 1 : 0.45;
+    ctx.fillStyle = selected ? 'rgba(30,107,255,0.35)' : 'rgba(10,18,34,0.85)';
+    ctx.strokeStyle = selected ? def.color : 'rgba(90,120,160,0.6)';
+    ctx.lineWidth = selected ? 2.5 : 1.5;
+    if (selected) { ctx.shadowBlur = 14; ctx.shadowColor = def.glow; }
+    roundRect(x, by, bw, bh, 8);
+    ctx.fill(); ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = def.color;
+    ctx.font = 'bold 13px "Courier New",monospace';
+    ctx.fillText(`${i+1}. ${def.name}`, x+bw/2, by+18);
+
+    ctx.fillStyle = '#ffd166';
+    ctx.font = '12px "Courier New",monospace';
+    ctx.fillText(`¤${def.cost}  ⚡${def.power}`, x+bw/2, by+38);
+
+    ctx.fillStyle = '#6a88a8';
+    ctx.font = '10px "Courier New",monospace';
+    ctx.fillText(affordable ? '可建造' : '星币不足', x+bw/2, by+53);
+    ctx.restore();
+
+    towerBtns.push({ x, y: by, w: bw, h: bh, key });
+  }
+}
+
+function drawEndScreen(win) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(2,4,10,0.85)';
+  ctx.fillRect(0,0,W,H);
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  ctx.font = `bold ${Math.min(52, W*0.09)}px "Courier New",monospace`;
+  ctx.shadowBlur = 30;
+  if (win) {
+    ctx.fillStyle = '#4fe3c1'; ctx.shadowColor = '#4fe3c1';
+    ctx.fillText('星舰守住了', W/2, H/2 - 40);
+  } else {
+    ctx.fillStyle = '#ff2e63'; ctx.shadowColor = '#ff2e63';
+    ctx.fillText('核心被击毁', W/2, H/2 - 40);
+  }
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#a9c6dd';
+  ctx.font = '15px "Courier New",monospace';
+  ctx.fillText(win ? '5 波敌军全部肃清，舰桥为你喝彩。' : `你撑到了第 ${G.wave} 波。`, W/2, H/2 + 20);
+
+  ctx.fillStyle = '#7fd4ff';
+  ctx.font = '13px "Courier New",monospace';
+  ctx.fillText('点击屏幕重新部署', W/2, H/2 + 64);
+
+  ctx.restore();
+}
+
+// ============ 工具 ============
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+}
+
+// ============ 输入 ============
+cv.addEventListener('pointerdown', (ev) => {
+  ev.preventDefault();
+  const px = ev.clientX, py = ev.clientY;
+
+  if (state === STATE.WIN || state === STATE.LOSE) {
+    resetGame();
+    return;
+  }
+  if (state !== STATE.PLAY) return;
+
+  // 底部按钮
+  for (const b of towerBtns) {
+    if (px >= b.x && px <= b.x+b.w && py >= b.y && py <= b.y+b.h) {
+      G.selected = b.key;
+      return;
+    }
+  }
+
+  // 网格
+  const cell = cellAt(px, py);
+  if (cell) placeTower(cell.c, cell.r);
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === '1') G.selected = 'laser';
+  if (e.key === '2') G.selected = 'missile';
+  if (e.key === '3') G.selected = 'pulse';
+});
+
+// ============ 重开 ============
+function resetGame() {
+  G.credits = 220;
+  G.structure = 100;
+  G.maxStructure = 100;
+  G.wave = 0;
+  G.enemies = [];
+  G.towers = [];
+  G.bullets = [];
+  G.particles = [];
+  G.floaters = [];
+  G.spawnQueue = [];
+  G.spawnTimer = 0;
+  G.waveCooldown = 2.5;
+  G.betweenWaves = true;
+  G.shake = 0;
+  G.gridFlash = 0;
+  state = STATE.PLAY;
+}
+
+// ============ 主循环 ============
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// 启动
+document.getElementById('startBtn').addEventListener('click', () => {
+  document.getElementById('intro').classList.add('hide');
+  resetGame();
+  last = performance.now();
+});
+
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
